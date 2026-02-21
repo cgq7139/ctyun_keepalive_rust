@@ -871,12 +871,14 @@ fn resolve_accounts() -> Result<Vec<Account>> {
                     for account in accounts_file.accounts {
                         if let Ok(user) = decrypt_data(&account.user_account, &key)
                             && let Ok(password) = decrypt_data(&account.password, &key)
+                            && let Ok(device_code) = decrypt_data(&account.device_code, &key)
                             && !user.is_empty()
+                            && !device_code.is_empty()
                         {
                             decoded.push(Account {
                                 user_account: user,
                                 password,
-                                device_code: account.device_code,
+                                device_code,
                             });
                         }
                     }
@@ -905,11 +907,12 @@ fn resolve_accounts() -> Result<Vec<Account>> {
 
         let encrypted_user = encrypt_data(&user, &key)?;
         let encrypted_password = encrypt_data(&password, &key)?;
+        let encrypted_device_code = encrypt_data(&device_code, &key)?;
 
         accounts_file.accounts.push(Account {
             user_account: encrypted_user,
             password: encrypted_password,
-            device_code: device_code.clone(),
+            device_code: encrypted_device_code,
         });
 
         let continue_input = read_line("是否继续添加账户? (y/n): ")?;
@@ -925,11 +928,12 @@ fn resolve_accounts() -> Result<Vec<Account>> {
     for account in accounts_file.accounts {
         let user = decrypt_data(&account.user_account, &key).unwrap_or_default();
         let password = decrypt_data(&account.password, &key).unwrap_or_default();
-        if !user.is_empty() {
+        let device_code = decrypt_data(&account.device_code, &key).unwrap_or_default();
+        if !user.is_empty() && !device_code.is_empty() {
             decoded.push(Account {
                 user_account: user,
                 password,
-                device_code: account.device_code,
+                device_code,
             });
         }
     }
