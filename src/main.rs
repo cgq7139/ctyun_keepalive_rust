@@ -825,6 +825,17 @@ fn write_line(value: &str) {
     println!("[{}] {}", ts, value);
 }
 
+fn write_green_line(value: &str) {
+    let ts = Local::now().format("%H:%M:%S%.6f").to_string();
+    let ts = &ts[..ts.len() - 4];
+    // ANSI 绿色 + 粗体
+    println!("\x1b[32;1m[{}] {}\x1b[0m", ts, value);
+}
+
+fn print_divider() {
+    println!("\x1b[90m{}\x1b[0m", "————————————————————");
+}
+
 fn compute_md5(value: &str) -> String {
     let mut hasher = Md5::new();
     hasher.update(value.as_bytes());
@@ -1084,7 +1095,8 @@ async fn keep_alive_worker(
                     tokio::time::sleep(Duration::from_millis(500)).await;
                     let _ = ws.send(Message::Binary(initial_payload.clone())).await;
 
-                    write_line(&format!("[{}] 连接已就绪，保持 {} 秒...", desktop.desktop_code, keepalive_interval));
+                    print_divider();
+                    write_green_line(&format!("[{}] 连接已就绪，保持 {} 秒...", desktop.desktop_code, keepalive_interval));
 
                     let api_clone = Arc::clone(&api);
                     let desktop_clone = desktop.clone();
@@ -1100,16 +1112,17 @@ async fn keep_alive_worker(
                     if let Err(e) = result {
                         let err_str = e.to_string();
                         if err_str.contains("1005") || err_str.contains("CloseNoStatusReceived") {
-                            write_line(&format!("[{}] 警告: 连接被对端关闭(1005)，不影响脚本使用，准备重连", desktop.desktop_code));
+                            write_green_line(&format!("[{}] 警告: 连接被对端关闭(1005)，不影响脚本使用，准备重连", desktop.desktop_code));
                         } else if err_str.contains("connection reset by peer") {
-                            write_line(&format!("[{}] 警告: 连接被对端重置，不影响脚本使用，准备重连", desktop.desktop_code));
+                            write_green_line(&format!("[{}] 警告: 连接被对端重置，不影响脚本使用，准备重连", desktop.desktop_code));
                         } else if !err_str.contains("context canceled") && !err_str.contains("deadline exceeded") {
-                            write_line(&format!("[{}] 异常: {}", desktop.desktop_code, e));
+                            write_green_line(&format!("[{}] 异常: {}", desktop.desktop_code, e));
                         } else {
                             continue;
                         }
                     } else {
-                        write_line(&format!("[{}] {}秒时间到，准备重连...", desktop.desktop_code, keepalive_interval));
+                        write_green_line(&format!("[{}] {}秒时间到，准备重连...", desktop.desktop_code, keepalive_interval));
+                        print_divider();
                     }
                 } else {
                     write_line(&format!("[{}] 发送连接消息失败", desktop.desktop_code));
