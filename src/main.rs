@@ -1009,6 +1009,7 @@ async fn keep_alive_worker(
     desktop: Desktop,
     api: Arc<CtYunApi>,
     mut shutdown_rx: tokio::sync::broadcast::Receiver<()>,
+    keepalive_interval: u64,
 ) {
     let initial_payload = STANDARD.decode("UkVEUQIAAAACAAAAGgAAAAAAAAABAAEAAAABAAAAEgAAAAkAAAAECAAA").unwrap();
     let uri = format!(
@@ -1083,7 +1084,7 @@ async fn keep_alive_worker(
                     tokio::time::sleep(Duration::from_millis(500)).await;
                     let _ = ws.send(Message::Binary(initial_payload.clone())).await;
 
-                    write_line(&format!("[{}] 连接已就绪，保持 60 秒...", desktop.desktop_code));
+                    write_line(&format!("[{}] 连接已就绪，保持 {} 秒...", desktop.desktop_code, keepalive_interval));
 
                     let api_clone = Arc::clone(&api);
                     let desktop_clone = desktop.clone();
@@ -1093,7 +1094,7 @@ async fn keep_alive_worker(
                         ws,
                         desktop_clone,
                         api_clone,
-                        Duration::from_secs(60),
+                        Duration::from_secs(keepalive_interval),
                     ).await;
 
                     if let Err(e) = result {
@@ -1108,7 +1109,7 @@ async fn keep_alive_worker(
                             continue;
                         }
                     } else {
-                        write_line(&format!("[{}] 60秒时间到，准备重连...", desktop.desktop_code));
+                        write_line(&format!("[{}] {}秒时间到，准备重连...", desktop.desktop_code, keepalive_interval));
                     }
                 } else {
                     write_line(&format!("[{}] 发送连接消息失败", desktop.desktop_code));
@@ -1132,7 +1133,17 @@ async fn keep_alive_worker(
 #[tokio::main]
 async fn main() -> Result<()> {
     write_line("版本：v 1.0.0");
-    
+
+    // 询问用户保活间隔时间
+    let interval_input = read_line("保活轮询间隔（秒，默认60）: ")?;
+    let keepalive_interval = if interval_input.trim().is_empty() {
+        60
+    } else {
+        interval_input.trim().parse::<u64>().unwrap_or(60)
+    };
+
+    write_line(&format!("保活间隔设置为: {} 秒", keepalive_interval));
+
     let accounts = resolve_accounts()?;
     if accounts.is_empty() {
         write_line("未找到账号信息");
@@ -1186,13 +1197,13 @@ async fn main() -> Result<()> {
             continue;
         }
 
-        write_line("保活任务启动：每 60 秒强制重连一次。");
+        write_line(&format!("保活任务启动：每 {} 秒强制重连一次。", keepalive_interval));
         let api = Arc::new(api);
         for desktop in active {
             let api_clone = Arc::clone(&api);
             let shutdown_rx = shutdown_tx.subscribe();
             let handle = tokio::spawn(async move {
-                keep_alive_worker(desktop, api_clone, shutdown_rx).await;
+                keep_alive_worker(desktop, api_clone, shutdown_rx, keepalive_interval).await;
             });
             handles.push(handle);
         }
